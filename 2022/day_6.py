@@ -1,0 +1,22 @@
+import sys
+
+
+def is_start_marker(code):
+    return len(code) == 4 and len(code) == len(set(code))
+
+
+def detect_start_marker(content):
+    code = []
+    for i in range(4, len(content)):
+        code = content[i-4:i]
+        if is_start_marker(code):
+            return i
+    raise Exception("pas de marqueur trouvé")
+
+
+if __name__ == '__main__':
+    with open(sys.argv[1], "r") as f:
+        line = f.readlines()
+        content = line[0].strip()
+        index_marker = detect_start_marker(content)
+    print(index_marker)
