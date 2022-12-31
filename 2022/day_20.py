@@ -74,7 +74,7 @@ def as_list(liste, n):
 
 
 def process_list(l, elements, verbose=False):
-    if(verbose):
+    if (verbose):
         print("-----before-----")
         liste = as_list(elements[0], len(elements))
         print([l.element for l in liste])
@@ -110,16 +110,64 @@ def grove_coordinates(elements):
     return coords
 
 
-if __name__ == '__main__':
-    filename = sys.argv[1]
+def prepare_list(filename):
     elements = parse_file(filename)
     elements = [ListDC(e) for e in elements]
 
     for i, e in enumerate(elements):
         e.lnext = elements[(i+1) % len(elements)]
         e.lprev = elements[i-1]
+    return elements
+
+
+def day20(filename):
+    elements = prepare_list(filename)
 
     process_list(elements[0], elements)
     coords = grove_coordinates(elements)
     print(coords)
     print(sum(coords))
+
+
+DEC_KEY = 811589153
+
+
+def process_list_bis(l, elements, verbose=False):
+    len_l = len(elements)
+    if (verbose):
+        print("-----before-----")
+        liste = as_list(elements[0], len(elements))
+        print([l.element for l in liste])
+    for i in tqdm(range(10)):
+        for e in tqdm(elements):
+            # if verbose:
+            #     print(f"#### {e.element} ####")
+            offset = e.element % (len_l - 1)
+
+            if offset < 0:
+                for _ in range(abs(offset)):
+                    e.swap_bw()
+            elif offset > 0:
+                for _ in range(offset):
+                    e.swap_fw()
+
+        if verbose:
+            print(f"---round {i}---")
+            liste = as_list(elements[0], len(elements))
+            print([l.element for l in liste])
+
+
+def day20_bis(filename):
+    elements = prepare_list(filename)
+    for e in elements:
+        e.element = e.element * DEC_KEY
+
+    process_list_bis(elements[0], elements, False)
+    coords = grove_coordinates(elements)
+    print(coords)
+    print(sum(coords))
+
+
+if __name__ == '__main__':
+    filename = sys.argv[1]
+    day20_bis(filename)
