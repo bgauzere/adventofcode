@@ -2,6 +2,10 @@ from abc import abstractmethod, ABC
 from typing import Any
 from utils import read_content
 from dataclasses import dataclass
+from tqdm import tqdm
+from math import lcm
+from collections import deque
+
 import logging
 
 from enum import Enum
@@ -88,7 +92,11 @@ class Dummy(Module):
     def __init__(self, destinations_modules, label):
         super().__init__(destinations_modules, label)
     def process_pulse(self, pulse: Pulse, from_who: str) -> Message:
-        return []
+        if pulse==Pulse.LOW:
+            print(f"{cycle = }")
+            exit()
+        else:
+            return [] 
 
 
 def parse_content(content):
@@ -116,9 +124,62 @@ def parse_content(content):
     
     for module_label in all_modules_labels:
         if module_label not in modules.keys():
+            logging.info(f"adding {module_label} as Dummy ")
             modules[module_label] = Dummy([],module_label)
     
     return modules
+
+class Detector():
+    def __init__(self, messages_to_watch):
+        self.to_watch = messages_to_watch
+        self.nb_min_cycles = {message: None for message in self.to_watch}
+
+    def detect(self, message:Message, cycle_nb:int):
+        logging.error(f"{message} : {cycle_nb}")
+        if message in self.to_watch:
+            if self.nb_min_cycles[message] is None:
+                self.nb_min_cycles[message] = cycle_nb
+            # on est arrivés !   
+            if all([self.nb_min_cycles[message] is not None for message in self.nb_min_cycles.keys()]):
+                print(lcm(*list(self.nb_min_cycles.values())))
+                exit()
+            
+        return
+            
+
+def antecedents(modules, module_label):
+    return [module for module in modules.keys() if modules[module].destinations_modules and module_label in modules[module].destinations_modules]
+
+def second(content):
+    modules = parse_content(content)
+    modules["button"] = Button(None,"button")
+    antecendts_rx = antecedents(modules,"rx")
+    logging.info(f"antecedents de rx : {antecendts_rx}")
+    antecendts_kc = antecedents(modules,"kc")
+    logging.info(f"antecedents de kc : {antecendts_kc}, {modules['kc']}")
+    for ant in antecendts_kc:
+        antecendts = antecedents(modules,ant)
+        logging.info(f"antecedents de {ant} : {antecendts}")
+    #breakpoint()
+    # kc est une conjunction. Donc il faut qu'il est reçu un high pulse de chaque antecedent pour envoyer un low pulse
+    # Il faut détecter quand il recoit chaque high pusle
+    messages_to_watch = [Message(ant,"kc",Pulse.HIGH) for ant in antecendts_kc]
+    detector = Detector(messages_to_watch)
+
+    for i in range(1,10000000):
+        messages = deque()
+        messages.append(Message("button","broadcaster",Pulse.LOW))
+    
+        while (messages):
+            message = messages.popleft()
+            detector.detect(message,i)
+            logging.info(f"{message}")
+            new_messages = modules[message.to_who].process_pulse(message.content,modules[message.from_who].label)
+            for next_message in new_messages:
+                messages.append(next_message)
+                #messages.extend(modules[message.to_who].process_pulse(message.content,modules[message.from_who].label))
+    return # never return if dectect
+
 
 
 def first(content):
@@ -126,7 +187,7 @@ def first(content):
     modules["button"] = Button(None,"button")
     nb_low = 0
     nb_high = 0
-    for cycle in range(1000):
+    for i in tqdm(range(10000000)):
         messages = [Message("button","broadcaster",Pulse.LOW)]
     
         while (messages):
@@ -142,6 +203,6 @@ def first(content):
     return nb_high*nb_low
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    logging.basicConfig(level=logging.ERROR, format=' %(message)s')
     content = read_content()
-    print(first(content))
+    print(second(content))
