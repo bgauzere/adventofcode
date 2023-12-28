@@ -1,6 +1,13 @@
+from collections import deque
 from utils import read_content
 import string 
 import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+from copy import deepcopy
+
+
 class Surface():
     def __init__(self, x1,y1,x2,y2):
         self.x1 = x1
@@ -21,6 +28,13 @@ class Space():
         self.z_axis = {}
         self.bricks = []
         self.supports = {}
+    
+    def copy(self):
+        new_space = Space()
+        new_space.z_axis = self.z_axis.copy()
+        new_space.bricks = self.bricks.copy()
+        new_space.supports = self.supports.copy()
+        return new_space
     
     def add_brick(self, brick):
         if brick.z not in self.z_axis:
@@ -67,6 +81,36 @@ class Space():
                     breakpoint()
                 level_map[p[0],p[1]] = "#"
         print(level_map)
+
+    def move_to_bottom(self):
+        # move bricks to the bottom
+        self.bricks.sort(key=lambda brick: brick.z)
+        nb_down = 0
+        for level in range(1,self.max_level()+1):
+            bricks_level = self.z_axis.get(level,[])
+            # if bricks_level:
+            #     print(f"level {level} : {[brick.id for brick in bricks_level]}")
+            to_move = []
+            for brick in bricks_level:
+                # print(f"brick {brick.id} at level {brick.z}")
+                brick_z = brick.z
+                while(len(self.find_bricks_in_surface(brick.surface, brick_z-1 )) == 0):
+                    if brick_z == 1:
+                        break
+                    brick_z -= 1
+                if brick_z != brick.z:
+                    to_move.append((brick,brick_z))
+            for brick, brick_z in to_move:
+                assert(brick_z != brick.z)
+                self.z_axis[brick.z].remove(brick)
+                # print(f"{brick.id} from {brick.z} to {brick_z}")
+                nb_down += 1
+                brick.z = brick_z
+                if brick_z not in self.z_axis:
+                    self.z_axis[brick_z] = [brick]
+                else:
+                    self.z_axis[brick_z].append(brick)
+        return nb_down
     
 class Brick3D():
     def __init__(self, x1, y1, z1, x2, y2, z2,id_brick):
@@ -192,10 +236,104 @@ def first(content):
     #breakpoint()
     return nb_to_be_destroyed
 
+def is_destroyable(brick,supports, is_supported_by):
+    # return True si la destruction de la brique n'implique pas de chute
+    # une brick peut etre supprimée si no support
+    support = supports.get(brick,None)
+        
+    if support is None or len(support) == 0:
+        return True
+    else: 
+    # une brick peut etre supprimée chaque brick qu'elle support et supporte par > 1 brick
+        for supported_brick in support: 
+            if len(is_supported_by.get(supported_brick, [])) < 2:
+                return False
+        return True
+
+def how_many_would_fall(brick, supports, is_supported_by):
+    #assert(not is_destroyable(brick,supports,is_supported_by))
+    # return the number of bricks that would fall if brick was destroyed
+    fallen = set()
+    fallen.add(brick)
+    queue = deque()
+    for b in supports.get(brick,[]):
+        queue.append(b)
+    while queue:
+        cur_brick = queue.popleft()
+        bricks_support = is_supported_by.get(cur_brick,None)
+        if bricks_support is not None:
+            if all([brick_support in fallen for brick_support in bricks_support]):
+                fallen.add(cur_brick)
+            for b in supports.get(cur_brick,[]):
+                queue.append(b)
+        else:
+            fallen.add(cur_brick)
+            for b in supports.get(cur_brick,[]):
+                queue.append(b)
+
+    #print(fallen)
+    return len(fallen) -1
+
+def built_bricks(content):
+    space = Space()
+    id_brick = 0
+    # built bricks
+    for l in content:
+        p1,p2 = l.split("~")
+        x1,y1,z1 = [int(c) for c in p1.split(",")]
+        x2,y2,z2 = [int(c) for c in p2.split(",")]
+        brick = Brick3D(x1,y1,z1,x2,y2,z2, id_brick)
+        #print(f"brick {brick.id} at level {brick.z}")
+        space.add_brick(brick)
+        id_brick += 1
+    #print(max([brick.height for brick in space.get_bricks()]))
+    return space
+
+def second(content):
+    space = built_bricks(content)
+    space.move_to_bottom()
+    # find supports and supported bricks
+    supports = {}
+    is_supported_by = {}          
+    for brick in space.get_bricks():
+        surface = brick.surface
+        z_max = brick.z + brick.height
+        bricks_above = space.find_bricks_in_surface(surface, z_max)
+        if bricks_above:
+            supports[brick] = bricks_above
+            for brick_b in bricks_above:
+                if brick_b not in is_supported_by:
+                    is_supported_by[brick_b] = [brick]
+                else:
+                    is_supported_by[brick_b].append(brick)
+    
+    total = 0
+    for brick in tqdm(space.get_bricks()):
+        if not is_destroyable(brick,supports,is_supported_by):
+            nb_down = how_many_would_fall(brick,supports,is_supported_by)
+            total += nb_down
+    return total
+    
+
 
     
+    # node = brick
+    # edge = (brick_a, brick_b) if brick_a supports brick_b
+    # G = nx.DiGraph()
+    # destroyable = []
+    # for brick in space.get_bricks():
+    #     G.add_node(brick, label=brick.id)
+    #     destroyable.append(not is_destroyable(brick,supports,is_supported_by))
+    #     for brick_b in supports.get(brick,[]):
+    #         G.add_edge(brick, brick_b)
+    # nx.draw_networkx(G, with_labels=True,node_color=destroyable)
+
+    # plt.show()
+    
+
 
 if __name__ == "__main__":
     content = read_content()
     #print(content)
-    print(first(content))
+    #print(first(content))
+    print(second(content))
