@@ -2,6 +2,7 @@ from utils import read_content
 from dataclasses import dataclass
 import networkx as nx
 import matplotlib.pyplot as plt
+from collections import deque
 
 @dataclass(frozen=True)
 class Point():
@@ -65,17 +66,80 @@ def first(content):
         
 
     
-    G = nx.DiGraph()
-    print(points)
+    G = nx.Graph()
+    #print(points)
     G.add_nodes_from(points)
     G.add_edges_from(edges)
-    #nx.draw(G, with_labels=True)
-    #plt.show()
-    paths = nx.all_simple_paths(G, start_point, end_point)
-    # for p in paths:
-    #     print(len(p))
+    intersections = [p for p in points if G.degree(p) > 2]
+    G_intersections = nx.DiGraph()
+    G_intersections.add_nodes_from(intersections)
+    G_intersections.add_node(start_point)
+    G_intersections.add_node(end_point)
+    queue = deque()
+    queue.append((start_point,start_point,0))
+    visited = set()
+    while len(queue) > 0:
+        p,prec,dist = queue.popleft()
+        visited.add((p,prec))
+        dist += 1
+        if p in G_intersections.nodes and p != start_point and p != prec: # intersection 
+            if p in G_intersections.neighbors(start_point):
+                print(f"edge {prec} -> {p} is not valid")
+                continue
+            
+            else:
+                G_intersections.add_edge(prec,p, attr={"dist" : dist})
+                dist = 0
+                prec = p
+
+        if p != end_point:
+            for n in G.neighbors(p):
+                if (n,prec) not in visited:
+                    queue.append((n,prec,dist))
+    # post processing
+    prec_end = next(G_intersections.predecessors(end_point))
+    neighbours = list(G_intersections.neighbors(prec_end))
+    for p in neighbours:
+       if p != end_point:
+           G_intersections.remove_edge(prec_end,p)
+            
+    node_pos = {p:(p.col,-p.line) for p in G_intersections.nodes()}
+
+    nx.draw_networkx(G_intersections, with_labels=True, pos=node_pos)
+    nx.draw_networkx_edge_labels(G_intersections, pos=node_pos, 
+                                 edge_labels={(e[0],e[1]):e[2]['attr']['dist'] for e in G_intersections.edges(data=True)})
+    plt.show()
+
+    # nodes_path  = nx.bellman_ford_path(G_intersections, start_point, end_point,weight="dist")
+    # length = 0
+    # for i in range(len(nodes_path)-1):
+    #     length += 1/G_intersections[nodes_path[i]][nodes_path[i+1]]['attr']['dist']
+        
+    # print(length)
+
+    #print(f"{len(intersections)} intersections")
+    color = [p in intersections for p in G.nodes()]
+
+
+    #print(color)
+
+    # nx.draw_networkx(G, with_labels=True, node_color =color, pos={p:(p.col,-p.line) for p in points})
+    # plt.show()
+
+    #cycles = nx.cycle_basis(G,root = start_point)
+    #print(cycles)
+    paths = nx.all_simple_paths(G_intersections, start_point, end_point)
+    print("tadam")
+    #print(len(paths))
+    max = 0
+    for p in paths:
+        lenght = sum([G_intersections[p[i]][p[i+1]]['attr']['dist'] for i in range(len(p)-1)])
+        if lenght > max:
+            max = lenght
+            print(max-1)
+        
     # breakpoint()
-    return max([len(p) for p in paths]) -1
+    #return max([len(p) for p in paths]) -1
 
 if __name__ == "__main__":
     content = read_content()
