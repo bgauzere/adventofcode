@@ -247,13 +247,13 @@ def cost_pair(keypad, start, end, level):
             for path in get_paths(keypad, start, end)
         )
         if level  # diff de 0 par le dernier nouveau
-        else 1  # par pressage de touche au dernier niveau
+        else 1  # par pressage de touche au dernier niveau, on s'interesse qu'à la taille par le contenu
     )
 
 
 @cache
 def cost_code(keypad, keys, level):
-    # a chaque fois, on s'interesse à la sequence entre deux touches étant donné que l'on revient toujours à 0 pour "presser"
+    # a chaque fois, on s'interesse à la sequence entre deux touches étant donné que l'on revient toujours à 0 pour "presser". C'est ça l'astuce
     return sum(cost_pair(keypad, a, b, level) for a, b in pairwise("A" + keys))
 
 
