@@ -9,6 +9,8 @@ numpy = "*"
 matplotlib = "*"
 ipykernel = "*"
 tqdm = "*"
+ipdb = "*"
+scipy = "*"
 
 [dev-packages]
 
